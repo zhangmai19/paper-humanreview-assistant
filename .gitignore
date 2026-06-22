@@ -1,0 +1,45 @@
+# Secrets & credentials
+config.yaml
+.env
+*.pem
+*_secret*
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Runtime output
+output/
+reviews/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# LaTeX artifacts (generated during review)
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
