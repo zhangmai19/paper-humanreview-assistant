@@ -1,0 +1,10 @@
+# Paper Human-Review Assistant — Dependencies
+# AI annotates, humans decide.
+
+click>=8.1
+rich>=13.0
+pyyaml>=6.0
+anthropic>=0.20
+pydantic>=2.0
+textstat>=0.7
+regex>=2023.0

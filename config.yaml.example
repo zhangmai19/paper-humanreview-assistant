@@ -1,0 +1,30 @@
+# Paper Human-Review Assistant — Configuration
+# Copy this to config.yaml and fill in your settings
+
+# === LLM Provider ===
+# Options: "anthropic", "deepseek"
+provider: "anthropic"
+
+# API Key (or set environment variable: ANTHROPIC_API_KEY / DEEPSEEK_API_KEY)
+api_key: ""
+
+# Default model
+# Anthropic: claude-sonnet-4-6, claude-opus-4-8, claude-haiku-4-5
+# DeepSeek: deepseek-v4-pro, deepseek-v4-flash
+model: "claude-sonnet-4-6"
+
+# Review dimensions to enable by default
+# Options: format, language, ai_patterns, math, logic, significance
+dimensions:
+  - format
+  - language
+  - ai_patterns
+  - math
+  - logic
+  - significance
+
+# Run review dimensions in parallel
+parallel_reviews: true
+
+# Output directory for review reports
+output_dir: "output"
