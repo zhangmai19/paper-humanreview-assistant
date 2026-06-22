@@ -198,6 +198,8 @@ def detect_tier_vocab(text: str) -> list[Annotation]:
     # tier2_matches, tier3_matches: same as before
 
     tier1b_line_numbers: list[int] = []
+    tier2_line_numbers: list[int] = []
+    tier2_line_words: dict[int, list[str]] = {}
 
     for i, line in enumerate(lines, 1):
         line_lower = line.lower()
@@ -222,19 +224,15 @@ def detect_tier_vocab(text: str) -> list[Annotation]:
             for m in pattern.finditer(line):
                 tier1b_line_numbers.append(i)
 
-        # Tier 2: flag MEDIUM
+        # Tier 2: track positions, density-gate later
+        tier2_line_numbers: list[int] = []
+        tier2_line_words: dict[int, list[str]] = {}
+
         for word in TIER2_VOCAB:
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
             for m in pattern.finditer(line):
-                results.append(_make_annotation(
-                    "ai_patterns",
-                    "AI词汇 (Tier2)",
-                    Severity.MEDIUM,
-                    i,
-                    m.group(),
-                    f'"{m.group()}" 在学术写作中被AI模型过度使用，密集出现时是AI写作的次级信号',
-                    "language",
-                ))
+                tier2_line_numbers.append(i)
+                tier2_line_words.setdefault(i, []).append(m.group())
 
         # Tier 3: flag LOW
         for word in TIER3_VOCAB:
@@ -250,7 +248,37 @@ def detect_tier_vocab(text: str) -> list[Annotation]:
                     "language",
                 ))
 
-    # ── Second pass: density-gate Tier 1b transitions ──
+    # ── Second pass: density-gate Tier 2 ──
+    # Only flag when 4+ Tier2 words appear in a 40-line window
+    # (individual words like "demonstrate" "optimization" are normal in economics)
+    if tier2_line_numbers:
+        sorted_t2 = sorted(set(tier2_line_numbers))
+        flagged_t2: set[int] = set()
+        for i, line_no in enumerate(sorted_t2):
+            window_count = sum(
+                1 for j in range(max(0, i - 3), min(len(sorted_t2), i + 4))
+                if abs(sorted_t2[j] - line_no) <= 40
+            )
+            if window_count >= 4 and line_no not in flagged_t2:
+                words_at_line = tier2_line_words.get(line_no, [])
+                unique_words = list(set(words_at_line))[:3]
+                for w in unique_words:
+                    results.append(_make_annotation(
+                        "ai_patterns",
+                        "密集AI词汇 (Tier2)",
+                        Severity.MEDIUM,
+                        line_no,
+                        w,
+                        f'"{w}" 等AI倾向词汇在短距离内密集出现了 {window_count} 次，'
+                        f'学术写作中此类词汇密度异常是AI生成文本的次级信号',
+                        "language",
+                    ))
+                # Mark all nearby lines as flagged
+                for j in range(max(0, i - 3), min(len(sorted_t2), i + 4)):
+                    if abs(sorted_t2[j] - line_no) <= 40:
+                        flagged_t2.add(sorted_t2[j])
+
+    # ── Third pass: density-gate Tier 1b transitions ──
     # Only flag if 3+ transition words appear within a 5-sentence window
     if tier1b_line_numbers:
         sentences = re.split(r'[.!?。！？]\s*', text)
@@ -378,17 +406,22 @@ def detect_negative_parallelisms(text: str) -> list[Annotation]:
 
 
 def detect_em_dashes(text: str) -> list[Annotation]:
-    """Detect em dashes — a strong AI writing signal."""
+    """Detect em dashes — only flag when 3+ on a single line.
+
+A single en-dash in "mean–variance" or "high–risk" is normal academic writing.
+Excessive dashes (3+ per line) is a genuine AI writing signal.
+"""
     results: list[Annotation] = []
     lines = text.split("\n")
     for i, line in enumerate(lines, 1):
         count = line.count('—') + line.count('--') + line.count('–')
-        if count > 0:
-            severity = Severity.HIGH if count >= 3 else (Severity.MEDIUM if count >= 2 else Severity.LOW)
+        # Only flag when 3+ dashes on one line. Single en-dash in
+        # "mean–variance" or "high–risk" is completely normal.
+        if count >= 3:
             results.append(_make_annotation(
                 "ai_patterns",
                 "破折号使用",
-                severity,
+                Severity.HIGH if count >= 5 else Severity.MEDIUM,
                 i,
                 line.strip()[:200],
                 f"此行包含 {count} 个破折号。AI生成的文本倾向于大量使用破折号（—），频率远超人类作者",

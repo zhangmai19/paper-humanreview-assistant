@@ -1,0 +1,146 @@
+# Paper Human-Review Assistant
+
+> **AI annotates, humans decide.** A tool that helps you read and review your own academic papers more efficiently.
+
+## Why This Exists
+
+AI tools that "review and revise" papers put the LLM in both roles — judge and executioner. Your paper gets "AI-fied" rather than improved, and you lose control of your own writing.
+
+This tool does the opposite:
+
+| ✅ AI Does | ❌ AI Doesn't |
+|-----------|--------------|
+| Scan for patterns across the full text | Rewrite or modify your paper |
+| Flag potential issues with exact locations | Make judgments without showing evidence |
+| Summarize sections for faster reading | Generate new content or "suggested fixes" |
+| Compare against writing checklists | Decide what your paper should say |
+| Highlight red flags in math and logic | Replace human judgment |
+
+The AI is your **junior research assistant** — it finds things for you to look at, then gets out of the way.
+
+## What It Checks
+
+Six dimensions, each producing a self-contained section in the review report:
+
+| # | Dimension | What It Looks For |
+|---|-----------|-------------------|
+| 1 | **Format & Structure** | Section numbering, figure/table captions, citation format, typography |
+| 2 | **Language & Terminology** | Grammar, terminology consistency, academic register, precision |
+| 3 | **AI Writing Patterns** | AI vocabulary, inflated claims, vague attributions, em-dash abuse, chatbot traces |
+| 4 | **Mathematical Derivation** | Gaps in derivations, undefined symbols, missing assumptions, completeness |
+| 5 | **Logical Flow** | Argument thread, paragraph coherence, evidence quality, overgeneralization |
+| 6 | **Research Significance** | Novelty, motivation, literature positioning, claim honesty |
+
+## Installation
+
+```bash
+git clone git@github.com:zhangmai19/paper-humanreview-assistant.git
+cd paper-humanreview-assistant
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp config.yaml.example config.yaml
+# Edit config.yaml with your API key, or set ANTHROPIC_API_KEY env var
+```
+
+## Usage
+
+```bash
+# Full review (all 6 dimensions)
+python main.py paper.tex
+
+# Specific dimensions only
+python main.py paper.tex --dimensions format,logic,ai_patterns
+
+# Custom output directory and model
+python main.py paper.tex --output-dir reviews/ --model claude-opus-4-8
+
+# Sequential mode (slower, easier to read progress)
+python main.py paper.tex --no-parallel
+```
+
+### Supported Input Formats
+
+- LaTeX (`.tex`, `.ltx`, `.latex`)
+- Markdown (`.md`, `.markdown`)
+- Plain text (`.txt`)
+
+### Output
+
+A Markdown report is saved to the `output/` directory (or `--output-dir`). Each finding follows this structure:
+
+```markdown
+### 🔍 [Dimension] Issue Title
+- **Location:** Section 3.2, Paragraph 2 (lines 145-152)
+- **Severity:** ⚠️ Medium
+- **What:** The derivation jumps from A to B without showing the intermediate step.
+- **Why it matters:** Readers unfamiliar with this technique may not follow the reasoning.
+- **Context:** [Quoted text snippet showing the issue]
+```
+
+**No suggested fixes.** You decide what to change.
+
+## Configuration
+
+```yaml
+# config.yaml
+api_key: ""                              # or set ANTHROPIC_API_KEY env var
+provider: "anthropic"                    # or "deepseek"
+model: "claude-sonnet-4-6"              # any Claude or DeepSeek model
+dimensions:                              # default dimensions to review
+  - format
+  - language
+  - ai_patterns
+  - math
+  - logic
+  - significance
+parallel_reviews: true                   # run reviewers concurrently
+output_dir: "output"                     # where reports are saved
+```
+
+## Project Structure
+
+```
+paper-humanreview-assistant/
+├── main.py                              # CLI entry point
+├── config.yaml.example
+├── requirements.txt
+├── README.md
+├── CLAUDE.md                            # Project constitution & design rules
+├── src/
+│   ├── annotation.py                    # Data models (Annotation, ReviewReport)
+│   ├── paper_reader.py                  # Paper loading & parsing
+│   ├── orchestrator.py                  # Coordinates rule-based + LLM reviewers
+│   ├── report_writer.py                 # Generates structured Markdown reports
+│   ├── utils.py                         # Config loading, LLM client, console output
+│   └── reviewers/
+│       ├── base.py                      # Abstract reviewer (enforces annotation contract)
+│       ├── ai_pattern_scanner.py        # Rule-based AI writing detection (24+ patterns)
+│       ├── format_reviewer.py           # Format & structure (LLM)
+│       ├── language_reviewer.py         # Language & terminology (LLM)
+│       ├── ai_reviewer.py              # AI patterns verification (LLM)
+│       ├── math_reviewer.py            # Mathematical derivation (LLM)
+│       ├── logic_reviewer.py           # Logical flow (LLM)
+│       └── significance_reviewer.py    # Research significance (LLM)
+├── tests/
+│   ├── test_paper_reader.py
+│   └── test_ai_pattern_scanner.py
+└── papers/
+    └── sample.tex
+```
+
+## AI Pattern Detection
+
+The AI writing pattern scanner runs **locally** — no API calls, instant results. It detects 24+ patterns across 5 categories:
+
+- **Content**: Inflated significance claims, vague attributions, superficial clauses, promotional language
+- **Language**: AI vocabulary (3 tiers), copula avoidance, negative parallelism, elegant variation, false ranges
+- **Style**: Em-dash overuse, Title Case headings, structured abstract sub-headings
+- **Communication**: Chatbot artifacts, knowledge-cutoff declarations, ingratiating tone
+- **Filler**: Excessive hedging, generic conclusions
+
+Patterns are density-gated to avoid false positives — individual "hence" or "demonstrate" won't flag; only dense clusters trigger alerts.
+
+## License
+
+MIT

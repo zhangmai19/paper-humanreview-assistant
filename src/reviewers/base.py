@@ -103,14 +103,17 @@ class BaseReviewer(ABC):
         ...
 
     def _fallback_annotation(self, raw_text: str) -> Annotation:
-        """Produce a single annotation when JSON parsing fails."""
+        """Produce a single annotation when JSON parsing fails.
+
+        Includes the raw LLM output so the human can still read it.
+        """
         return Annotation(
             dimension=self.dimension,
-            title=f"{self.dimension_name} — raw output",
+            title=f"{self.dimension_name} — raw output (JSON parse failed)",
             severity=Severity.MEDIUM,
-            location=Location(quoted_text=""),
-            what="JSON解析失败，请查看详细输出",
-            why="LLM返回的JSON格式无法解析",
+            location=Location(quoted_text=raw_text[:500]),
+            what=f"AI返回了结果但JSON格式无法自动解析。原始输出前500字符已在Context中，请手动查看",
+            why="LLM返回的JSON格式异常（可能论文过长或含特殊字符）。原始内容仍有参考价值",
             category="parse-error",
         )
 
