@@ -99,11 +99,14 @@ def run_review(
         reviewer = reviewer_cls(llm=llm, model=model)
         prompt = make_prompt(dim)
 
+        # AI patterns reviewer needs more tokens for long papers
+        max_tokens = 16384 if dim == "ai_patterns" else 8192
+
         try:
             result_text = llm_chat(
                 reviewer.llm, reviewer.model,
                 reviewer.system_prompt, prompt,
-                max_tokens=8192, temperature=0.3,
+                max_tokens=max_tokens, temperature=0.3,
             )
             parsed = _extract_json(result_text)
             if parsed:

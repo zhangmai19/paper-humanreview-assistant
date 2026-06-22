@@ -43,3 +43,5 @@ Thumbs.db
 *.out
 *.toc
 *.synctex.gz
+papers/temp_*.tex
+papers/main.tex

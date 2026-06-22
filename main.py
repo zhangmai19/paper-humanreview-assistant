@@ -46,7 +46,7 @@ from src.utils import load_config, create_llm_client, print_banner, console
     help="API key (or set ANTHROPIC_API_KEY / DEEPSEEK_API_KEY env var)",
 )
 @click.option(
-    "--config", "config_path", default="config.yaml", type=click.Path(exists=True),
+    "--config", "config_path", default="config.yaml",
     help="Config file path (default: config.yaml)",
 )
 @click.option(
@@ -90,15 +90,19 @@ def main(
     env_key = (
         os.environ.get("DEEPSEEK_API_KEY")
         if final_provider == "deepseek"
-        else os.environ.get("ANTHROPIC_API_KEY")
+        else (
+            os.environ.get("ANTHROPIC_API_KEY")
+            or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        )
     )
     final_api_key = api_key or config.get("api_key") or env_key
     if not final_api_key:
-        key_var = (
-            "DEEPSEEK_API_KEY" if final_provider == "deepseek" else "ANTHROPIC_API_KEY"
+        key_vars = (
+            "DEEPSEEK_API_KEY" if final_provider == "deepseek"
+            else "ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN"
         )
         console.print(f"\n[bold red]Error: No {final_provider.upper()} API key[/bold red]")
-        console.print(f"Set via: env var {key_var}, --api-key, or config.yaml")
+        console.print(f"Set via: env var {key_vars}, --api-key, or config.yaml")
         sys.exit(1)
 
     config["provider"] = final_provider

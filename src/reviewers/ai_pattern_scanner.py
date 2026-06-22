@@ -15,23 +15,19 @@ from src.annotation import Annotation, Location, Severity
 
 
 # ============================================================
-# TIER 1 — Dead Giveaways (always flagged)
+# TIER 1 — True AI giveaways (always flagged HIGH regardless of count)
 # ============================================================
-TIER1_VOCAB = [
+TIER1_HARD = [
     "delve", "delve into", "delve deeper",
     "tapestry", "rich tapestry", "vibrant tapestry",
-    "moreover", "furthermore", "additionally", "consequently", "thus", "hence",
-    "notably", "importantly", "interestingly", "surprisingly",
     "pivotal", "pivotal moment", "pivotal role",
     "testament", "a testament to", "serves as a testament",
     "showcase", "showcases", "showcasing",
-    "underscores", "underscoring", "highlighting", "highlight",
+    "underscores", "underscoring",
     "realm", "in the realm of", "realm of",
     "landscape", "evolving landscape", "changing landscape",
     "intricate", "intricately",
     "embodies", "epitomizes",
-    "crucial", "paramount", "vital", "essential",
-    "profound", "profoundly", "deeply",
     "unwavering", "unwaveringly",
     "indelible", "indelibly",
     "transformative",
@@ -39,7 +35,6 @@ TIER1_VOCAB = [
     "revolutionary",
     "cutting-edge",
     "state-of-the-art",
-    "robust",
     "paradigm", "paradigm shift",
     "game-changer",
     "seamless", "seamlessly",
@@ -53,6 +48,19 @@ TIER1_VOCAB = [
     "world-class",
     "best-in-class",
     "market-leading",
+]
+
+# ============================================================
+# TIER 1b — Transition/signposting words (normal in academic prose,
+# only flagged if density is high: 3+ in a 5-sentence window)
+# ============================================================
+TIER1_TRANSITIONS = [
+    "moreover", "furthermore", "additionally", "consequently", "thus", "hence",
+    "notably", "importantly", "interestingly", "surprisingly",
+    "crucial", "paramount", "vital", "essential",
+    "profound", "profoundly", "deeply",
+    "highlighting", "highlight",
+    "robust",
 ]
 
 # ============================================================
@@ -173,14 +181,29 @@ def _match_patterns(
 # ============================================================
 
 def detect_tier_vocab(text: str) -> list[Annotation]:
-    """Detect Tier 1, 2, 3 AI vocabulary."""
+    """Detect Tier 1 hard, Tier 1b transition (density-gated), Tier 2, Tier 3 vocabulary.
+
+    Tier 1 hard: always flagged HIGH (true AI giveaways like 'delve', 'tapestry').
+    Tier 1b transitions: 'hence', 'thus', 'moreover' — normal in academic prose,
+        only flagged when 3+ appear in a 5-sentence window (density trigger).
+    Tier 2: flagged MEDIUM per occurrence.
+    Tier 3: flagged LOW per occurrence.
+    """
     results: list[Annotation] = []
     lines = text.split("\n")
+
+    # ── First pass: collect all matches ──
+    # tier1_hard_matches: list of (line_no, match_text)
+    # tier1b_matches: list of line_no
+    # tier2_matches, tier3_matches: same as before
+
+    tier1b_line_numbers: list[int] = []
 
     for i, line in enumerate(lines, 1):
         line_lower = line.lower()
 
-        for word in TIER1_VOCAB:
+        # Tier 1 hard: always flag HIGH
+        for word in TIER1_HARD:
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
             for m in pattern.finditer(line):
                 results.append(_make_annotation(
@@ -189,10 +212,17 @@ def detect_tier_vocab(text: str) -> list[Annotation]:
                     Severity.HIGH,
                     i,
                     m.group(),
-                    f'"{m.group()}" 是AI生成文本的高频标志词，在学术写作中出现的概率远高于人类作者',
+                    f'"{m.group()}" 是AI生成文本的强烈标志词，在学术写作中几乎仅由AI使用',
                     "language",
                 ))
 
+        # Tier 1b: track positions, don't flag yet
+        for word in TIER1_TRANSITIONS:
+            pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
+            for m in pattern.finditer(line):
+                tier1b_line_numbers.append(i)
+
+        # Tier 2: flag MEDIUM
         for word in TIER2_VOCAB:
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
             for m in pattern.finditer(line):
@@ -206,6 +236,7 @@ def detect_tier_vocab(text: str) -> list[Annotation]:
                     "language",
                 ))
 
+        # Tier 3: flag LOW
         for word in TIER3_VOCAB:
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
             for m in pattern.finditer(line):
@@ -218,6 +249,55 @@ def detect_tier_vocab(text: str) -> list[Annotation]:
                     f'"{m.group()}" 可能是AI填充语，在上下文中显得冗余或公式化',
                     "language",
                 ))
+
+    # ── Second pass: density-gate Tier 1b transitions ──
+    # Only flag if 3+ transition words appear within a 5-sentence window
+    if tier1b_line_numbers:
+        sentences = re.split(r'[.!?。！？]\s*', text)
+        sentence_bounds: list[tuple[int, int]] = []  # (start_line, end_line) per sentence
+        for sentence in sentences:
+            start = text.find(sentence[:30]) if sentence else 0
+            before = text[:start]
+            start_line = before.count("\n") + 1 if start >= 0 else 1
+            end_line = start_line + sentence.count("\n")
+            sentence_bounds.append((start_line, end_line))
+
+        # Use approximate: count transitions per 5-line windows
+        flagged_lines: set[int] = set()
+        sorted_lines = sorted(set(tier1b_line_numbers))
+        for i, line_no in enumerate(sorted_lines):
+            # Count transitions in window of 5 consecutive transition occurrences
+            window_start = max(0, i - 2)
+            window_end = min(len(sorted_lines), i + 3)
+            window_count = sum(
+                1 for j in range(window_start, window_end)
+                if abs(sorted_lines[j] - line_no) <= 30  # within ~30 lines = ~1 paragraph
+            )
+            if window_count >= 3 and line_no not in flagged_lines:
+                # Flag all transitions in this dense cluster
+                for j in range(window_start, window_end):
+                    if j != i and abs(sorted_lines[j] - line_no) <= 30:
+                        continue  # will be caught when we reach them
+                # Find the actual word that triggered at this line
+                line_text = lines[line_no - 1].lower() if line_no <= len(lines) else ""
+                matched_words = [w for w in TIER1_TRANSITIONS
+                                if re.search(r'\b' + re.escape(w) + r'\b', line_text)]
+                for w in set(matched_words):
+                    context = f"密集过渡词簇（{window_count}次/{30}行内）"
+                    results.append(_make_annotation(
+                        "ai_patterns",
+                        "密集过渡词 (Tier1b)",
+                        Severity.MEDIUM,
+                        line_no,
+                        w,
+                        f'"{w}" 等过渡词在短距离内密集出现了 {window_count} 次，'
+                        f'学术写作中过渡词密度过高是AI生成文本的特征（正常使用通常每页1-2次）',
+                        "language",
+                    ))
+                flagged_lines.update(
+                    sorted_lines[j] for j in range(window_start, window_end)
+                    if abs(sorted_lines[j] - line_no) <= 30
+                )
 
     return results
 
@@ -493,26 +573,57 @@ def detect_generic_conclusions(text: str) -> list[Annotation]:
 
 
 def detect_title_case_headings(text: str) -> list[Annotation]:
-    """Detect excessive Title Case headings."""
+    """Detect excessive Title Case headings.
+
+    Excludes lines that are clearly LaTeX code, math, or placeholders —
+    those are not real headings and should not be flagged.
+    """
     results: list[Annotation] = []
     lines = text.split("\n")
     title_case_count = 0
+
+    # Patterns that indicate a line is NOT a real heading
+    _LATEX_LINE = re.compile(
+        r'\\'               # LaTeX commands
+        r'|\$'               # math mode
+        r'|\{'               # braces (code, not prose)
+        r'|_\{'              # subscripts
+        r'|\^'               # superscripts
+        r'|\\begin\{|\\end\{|\\textbf\{|\\textit\{|\\texttt\{'
+        r'|\\section|\\subsection|\\chapter|\\part'
+        r'|\[公式\]'           # formula placeholder
+        r'|&=|\\\\'          # alignment tabs, line breaks
+        r'|\\label|\\ref|\\cite'  # cross-references
+        r'|(?:sec|app|fig|tab|eq|thm|lem|cor|prop):\w+'  # label remnants
+    )
+
     for i, line in enumerate(lines, 1):
         stripped = line.strip()
-        if stripped and len(stripped) > 3 and len(stripped) < 120:
-            words = stripped.split()
-            if all(w[0].isupper() if w[0].isalpha() else True for w in words if len(w) > 2):
-                title_case_count += 1
-                if title_case_count > 2:
-                    results.append(_make_annotation(
-                        "ai_patterns",
-                        "Title Case标题",
-                        Severity.LOW,
-                        i,
-                        stripped[:200],
-                        f"过度使用Title Case标题（已累计 {title_case_count} 处）是AI写作的风格特征。学术论文通常使用Sentence case",
-                        "style",
-                    ))
+
+        # Skip empty, short, or obviously-code lines
+        if not stripped or len(stripped) < 3 or len(stripped) > 120:
+            continue
+        if _LATEX_LINE.search(stripped):
+            continue
+
+        words = stripped.split()
+        # Only consider lines with at least 2 alphabetic words
+        alpha_words = [w for w in words if w[0].isalpha() and len(w) > 2]
+        if len(alpha_words) < 2:
+            continue
+
+        if all(w[0].isupper() if w[0].isalpha() else True for w in words if len(w) > 2):
+            title_case_count += 1
+            if title_case_count > 2:
+                results.append(_make_annotation(
+                    "ai_patterns",
+                    "Title Case标题",
+                    Severity.LOW,
+                    i,
+                    stripped[:200],
+                    f"过度使用Title Case标题（已累计 {title_case_count} 处）是AI写作的风格特征。学术论文通常使用Sentence case",
+                    "style",
+                ))
     return results
 
 

@@ -34,7 +34,16 @@ def load_config(config_path: str = "config.yaml") -> dict:
         env_key = os.environ.get("DEEPSEEK_API_KEY")
     else:
         config.setdefault("model", "claude-sonnet-4-6")
-        env_key = os.environ.get("ANTHROPIC_API_KEY")
+        # Support both ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN (Claude Code CLI)
+        env_key = (
+            os.environ.get("ANTHROPIC_API_KEY")
+            or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        )
+
+    # Support custom base URL via ANTHROPIC_BASE_URL env var
+    custom_base = os.environ.get("ANTHROPIC_BASE_URL", "")
+    if custom_base and not config.get("base_url"):
+        config["base_url"] = custom_base
 
     if env_key:
         config["api_key"] = env_key
@@ -54,11 +63,15 @@ def create_llm_client(config: dict) -> tuple[str, object]:
     provider = config.get("provider", "anthropic")
     api_key = config.get("api_key", "")
 
+    base_url = config.get("base_url", "")
     if provider == "deepseek":
         client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
         return ("openai", client)
     else:
-        client = Anthropic(api_key=api_key)
+        kwargs = {"api_key": api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        client = Anthropic(**kwargs)
         return ("anthropic", client)
 
 
