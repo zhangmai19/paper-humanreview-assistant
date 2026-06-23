@@ -57,6 +57,42 @@ LANGUAGE_USER = """Review the following academic paper for LANGUAGE & TERMINOLOG
 - Are there run-on sentences or fragments?
 - Is there evidence of translationese or non-native structuring?
 
+### 6. AI-Generated Sentence Patterns
+These are sentence-level patterns characteristic of LLM-generated academic prose.
+They are subtle — unlike individual words ("delve", "tapestry"), these pass as acceptable
+English but *feel* formulaic. Flag them for the human author to decide.
+
+**Abstract elevation at sentence end**: sentences that conclude by inflating a specific
+finding into an abstract claim using empty signifiers. Examples:
+- "... emerges as a central dimension of P2P insurance design"
+- "... serves as a cornerstone for future research"
+- "... stands as a critical consideration for practitioners"
+→ These end a sentence with a vague, grand claim. The preceding content is often fine;
+the last clause overreaches.
+
+**Nested subordinate clause chains**: one sentence that tries to say everything at once
+by stacking clauses. Pattern: "X does Y, by Z-ing the W that P ignores, moving toward Q."
+Each clause is grammatical, but the stacking is an AI hallmark. Break into two sentences.
+
+**Dramatic verbs where plain ones work**: "reveals", "uncovers", "brings out", "unleashes",
+"transforms" — especially when introducing findings. A finding can simply "show", "indicate",
+or "suggest". (Note: "reveal" / "uncover" are distinct from the Tier 1 word list — those
+catch marketing adjectives; this is about verb choice in academic argumentation.)
+
+**"Not just X, but Y" / "Alongside X, Y emerges" cadence**: a two-part sentence structure
+where the second part elevates. Examples:
+- "... matters for P2P insurance design, not just the choice of sharing rule"
+- "pool composition, alongside the sharing rule, shapes the viability..."
+→ Often the first part is enough. The second part adds rhetorical weight, not information.
+
+**Compressed multi‑claim sentences**: a single sentence that packs 2–3 separable claims
+into one, often joined by "and" or a semicolon. If each claim could be its own sentence,
+flag it. AI tends to compress; humans tend to separate.
+
+For each flagged sentence, identify the pattern and quote the sentence. Explain *why*
+it reads as AI-generated — be specific about which structural feature triggered the flag.
+Do NOT propose a rewrite.
+
 ## Output Format
 
 Return a JSON object with this structure:

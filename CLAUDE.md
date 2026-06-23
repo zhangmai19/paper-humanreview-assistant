@@ -43,7 +43,7 @@ The problem with most "AI paper review" tools is that they put AI in both the re
 
 ## Architecture
 
-### Directory Structure (Planned)
+### Directory Structure
 
 ```
 paper-humanreview-assistant/
@@ -52,6 +52,7 @@ paper-humanreview-assistant/
 ├── requirements.txt
 ├── README.md
 ├── CLAUDE.md                    # This file
+├── project_journal_*.md         # Daily work journals (not in git)
 ├── src/
 │   ├── __init__.py
 │   ├── paper_reader.py          # Paper loading, parsing, plain-text extraction
@@ -60,14 +61,14 @@ paper-humanreview-assistant/
 │   │   ├── __init__.py
 │   │   ├── base.py              # Abstract reviewer interface
 │   │   ├── format_reviewer.py   # Formatting & structure checks
-│   │   ├── language_reviewer.py # Academic language conventions
-│   │   ├── ai_pattern_scanner.py # AI writing pattern detection (rule-based)
+│   │   ├── language_reviewer.py # Academic language conventions + AI sentence patterns (§6)
+│   │   ├── ai_pattern_scanner.py # AI writing pattern detection (rule-based, 24+ patterns)
+│   │   ├── ai_reviewer.py       # LLM verification layer for AI pattern findings
 │   │   ├── math_reviewer.py     # Mathematical derivation checks
 │   │   ├── logic_reviewer.py    # Argument flow & logical coherence
 │   │   └── significance_reviewer.py # Research contribution assessment
-│   ├── summarizer.py            # Section/chapter summarization for human reading
+│   ├── orchestrator.py          # Coordinates rule-based scan + parallel/sequential LLM reviewers
 │   ├── report_writer.py         # Generates structured Markdown reports
-│   ├── diff_engine.py           # Compare paper versions, track changes
 │   └── utils.py                 # Shared utilities, config loading, LLM client
 ├── tests/
 │   ├── test_paper_reader.py
@@ -75,6 +76,8 @@ paper-humanreview-assistant/
 │   └── ...
 └── papers/                      # Sample papers for testing
     └── sample.tex
+
+Planned but not yet built: summarizer.py, diff_engine.py
 ```
 
 ### Key Differences from `paper-review-iterative`
@@ -90,14 +93,9 @@ This project is a spiritual successor to `paper-review-iterative` (the sibling p
 | Iteration | AI iterates until convergence | Human iterates at their own pace |
 | Modification | AI modifies the paper | AI never touches the paper |
 
-### Reusable Code from `paper-review-iterative`
+### Historical Note
 
-The following modules can be adapted (not copied blindly — they need refactoring to match the new philosophy):
-
-- `src/paper_manager.py` → `src/paper_reader.py` — Keep parsing logic, remove save/diff/revision logic (diff moves to separate module)
-- `src/humanizer_patterns.py` → `src/reviewers/ai_pattern_scanner.py` — Keep the 24+ pattern detection rules, these are rule-based and don't generate content
-- `src/utils.py` → `src/utils.py` — Keep config loading and LLM client factory
-- `src/prompts/*.py` → Rewrite completely. Old prompts ask AI to "find problems and suggest fixes." New prompts must ask AI to "identify, locate, and explain — never suggest."
+This project was bootstrapped from `../paper-review-iterative`, adapting its paper parsing (`paper_reader.py`) and AI pattern detection rules (`ai_pattern_scanner.py`). All prompts were rewritten to match the "annotate, never suggest" philosophy. The migration was completed on 2026-06-23.
 
 ## Development Workflow
 
@@ -142,6 +140,24 @@ python main.py paper.tex --model claude-opus-4-8
 - Test paper fixtures go in `papers/`
 - Rule-based scanners (like AI pattern detection) must have unit tests
 - LLM-based reviewers should have integration tests with mocked API responses
+
+### Journal Discipline
+
+Every session starts by reading the latest journal(s) and ends by updating them. General rules are in the global `~/.claude/CLAUDE.md`; the project-specific details are here.
+
+**This project's journal files:**
+
+| File | Purpose |
+|------|---------|
+| `project_journal_YYYY-MM-DD.md` (project root) | What was done to the tool, patterns discovered, project-level next steps |
+| `/mnt/d/hku/paper2/review_journal_YYYY-MM-DD.md` | Paper-specific findings and to-do for the current paper under review |
+| Memory snapshot (auto-maintained by Claude) | Lightweight context for AI recall across sessions |
+
+**Project-specific notes:**
+
+- A consolidated "待办汇总" (to-do summary) must appear at the bottom of the latest journal at session end. One place, all pending items.
+- The paper review journal path may change when the active paper changes; update it in this file when that happens.
+- `summarizer.py` and `diff_engine.py` are planned but not yet built — don't try to import them.
 
 ## Review Dimensions
 
