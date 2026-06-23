@@ -756,6 +756,106 @@ def _compute_sentence_cv(text: str) -> float:
 # MAIN ANALYSIS
 # ============================================================
 
+def detect_article_agreement(text: str) -> list[Annotation]:
+    """Detect article-noun agreement errors (common after bulk find-and-replace).
+
+    Flags patterns like "an participant", "a equilibrium", "an model", etc.
+    These often arise from global search-and-replace operations where the noun
+    is changed but the article is not updated.
+    """
+    vowel_sounds = r'\b[aeiou]'
+    consonant_sounds = r'\b[bcdfghjklmnpqrstvwxyz]'
+    patterns = [
+        (r'\ban\s+(' + consonant_sounds + r'[a-z]+)\b', 0.5,
+         'Detected "an" before a consonant-initial word. After bulk find-replace, articles may become mismatched.'),
+        (r'\bAn\s+(' + consonant_sounds + r'[a-z]+)\b', 0.5,
+         'Detected "An" before a consonant-initial word. After bulk find-replace, articles may become mismatched.'),
+    ]
+    results: list[Annotation] = []
+    lines = text.split("\n")
+    for pat, sev, why in patterns:
+        for i, line in enumerate(lines, 1):
+            for m in re.finditer(pat, line):
+                results.append(_make_annotation(
+                    "ai_patterns",
+                    "冠词-名词不一致",
+                    Severity.HIGH if sev >= 0.8 else (Severity.MEDIUM if sev >= 0.5 else Severity.LOW),
+                    i,
+                    m.group(),
+                    f'{why} Found: "{m.group()}"',
+                    "language",
+                ))
+    return results
+
+
+def detect_gendered_pronouns(text: str) -> list[Annotation]:
+    """Detect gendered pronouns (he/she/his/her) in academic writing.
+
+    Modern academic English increasingly avoids gendered pronouns for generic
+    agents, using singular "they", neuter passives, or rewording instead.
+    This scanner flags occurrences so the human author can decide.
+    """
+    patterns = [
+        (r'\bhe\b', 0.3, '"he" used for a generic agent. Consider whether gender-neutral phrasing would be more appropriate.'),
+        (r'\bshe\b', 0.3, '"she" used for a generic agent. Consider whether gender-neutral phrasing would be more appropriate.'),
+        (r'\bhis\b', 0.3, '"his" used for a generic agent. Consider whether gender-neutral phrasing would be more appropriate.'),
+        (r'\bher\b', 0.3, '"her" used for a generic agent. Consider whether gender-neutral phrasing would be more appropriate.'),
+    ]
+    results: list[Annotation] = []
+    lines = text.split("\n")
+    for pat, sev, why in patterns:
+        for i, line in enumerate(lines, 1):
+            for m in re.finditer(pat, line, re.IGNORECASE):
+                results.append(_make_annotation(
+                    "ai_patterns",
+                    "性别代词使用",
+                    Severity.LOW,
+                    i,
+                    m.group(),
+                    why,
+                    "language",
+                ))
+    # Density gate: only flag if 2+ gendered pronouns appear (single "he" or "she" may be intentional)
+    if len(results) <= 1:
+        results = []
+    return results
+
+
+def detect_capitalized_drift(text: str) -> list[Annotation]:
+    """Detect words that appear in both capitalized and lowercase forms inconsistently.
+
+    This often results from replacing only one case of a word globally
+    (e.g., replacing "agent" but missing "Agent" / "Agents").
+    """
+    words = re.findall(r'\b([A-Z][a-z]{2,})\b', text)
+    word_counts: dict[str, int] = {}
+    for w in words:
+        word_counts[w] = word_counts.get(w, 0) + 1
+
+    results: list[Annotation] = []
+    for cap_word, count in word_counts.items():
+        if count >= 3:
+            lower_count = len(re.findall(r'\b' + re.escape(cap_word.lower()) + r'\b', text, re.IGNORECASE))
+            only_lower = len(re.findall(r'\b' + re.escape(cap_word.lower()) + r'\b', text))
+            # If the word appears in both capitalized and lowercase forms
+            if count > 0 and only_lower > 0 and cap_word.lower() not in ("section", "appendix", "figure", "table", "chapter"):
+                # Find the first line with the capitalized form
+                for i, line in enumerate(text.split("\n"), 1):
+                    if re.search(r'\b' + re.escape(cap_word) + r'\b', line):
+                        results.append(_make_annotation(
+                            "ai_patterns",
+                            "大小写不一致",
+                            Severity.LOW,
+                            i,
+                            f'"{cap_word}" (capitalized) vs "{cap_word.lower()}" (lowercase)',
+                            f'"{cap_word}" appears in both capitalized ({count}x) and lowercase ({only_lower}x) '
+                            f'forms. This may indicate an incomplete global find-replace.',
+                            "language",
+                        ))
+                        break
+    return results
+
+
 def scan(text: str) -> list[Annotation]:
     """Run all AI pattern detectors and return a flat list of Annotations.
 
@@ -790,6 +890,11 @@ def scan(text: str) -> list[Annotation]:
     # Filler/Hedging
     all_annotations.extend(detect_hedging_excess(text))
     all_annotations.extend(detect_generic_conclusions(text))
+
+    # Editing artifact detection
+    all_annotations.extend(detect_article_agreement(text))
+    all_annotations.extend(detect_gendered_pronouns(text))
+    all_annotations.extend(detect_capitalized_drift(text))
 
     return all_annotations
 

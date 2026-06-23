@@ -135,11 +135,26 @@ The AI writing pattern scanner runs **locally** — no API calls, instant result
 
 - **Content**: Inflated significance claims, vague attributions, superficial clauses, promotional language
 - **Language**: AI vocabulary (3 tiers), copula avoidance, negative parallelism, elegant variation, false ranges
+- **Editing Artifacts**: Article-noun agreement errors (e.g., "an participant" after bulk replace), capitalized word drift (both "Agent" and "Participant"), gendered pronoun usage
 - **Style**: Em-dash overuse, Title Case headings, structured abstract sub-headings
 - **Communication**: Chatbot artifacts, knowledge-cutoff declarations, ingratiating tone
 - **Filler**: Excessive hedging, generic conclusions
 
 Patterns are density-gated to avoid false positives — individual "hence" or "demonstrate" won't flag; only dense clusters trigger alerts.
+
+## Workflow: Review, Then Edit One at a Time
+
+The tool produces a review report. **How** you act on it matters:
+
+| Batch Fever | Step-by-Step |
+|------------|--------------|
+| Get 40+ annotations at once | Pick one small, mechanical item |
+| Feel overwhelmed, procrastinate | Make the edit, verify it worked |
+| Fix a few randomly | Move to the next — each step has a win |
+
+The review report doubles as a task list you can tick through. Each finding says **what** and **why** — never **how**. You decide the fix, and you decide what to skip.
+
+The AI pattern scanner also catches editing artifacts: after global find-and-replace (`agent` → `participant`), it can flag article-noun mismatches (`an participant`), capitalized leftovers (`Agents` surviving the replace), and gendered pronouns you may want to neutralize.
 
 ## License
 

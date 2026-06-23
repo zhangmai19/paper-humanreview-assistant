@@ -38,6 +38,8 @@ MATH_USER = """Review the following academic paper for MATHEMATICAL issues.
 - Are vectors, matrices, scalars consistently represented (bold, italic, etc.)?
 - Are subscripts and superscripts used correctly and consistently?
 - Are different variable types (random variables, constants, parameters) clearly distinguished?
+- Is the SAME quantity denoted differently in different sections? (e.g., σ_{HL} in one place but c_{HL} in another)
+- Do restored or imported equation blocks use notation consistent with the rest of the paper?
 
 ### 3. Assumptions & Boundary Conditions
 - Are all assumptions explicitly stated?
@@ -54,6 +56,7 @@ MATH_USER = """Review the following academic paper for MATHEMATICAL issues.
 - Are equations properly numbered?
 - Do inline equations disrupt readability?
 - Are displayed equations formatted clearly?
+- Are there `\\tag{$\\star$}` or other non-numeric equation tags? (equations should use numeric numbering)
 
 ## Output Format
 

@@ -39,6 +39,9 @@ FORMAT_USER = """Review the following academic paper for FORMATTING & STRUCTURE 
 - Are all figures/tables referenced in the body text?
 - Are equations numbered correctly and consecutively?
 - Are symbols in equations defined in the surrounding text?
+- Are there any `\\tag{...}` commands in equation environments? (should use numeric labels)
+- Are there duplicate `\\label{...}` keys? (will cause LaTeX compilation errors)
+- Do any labeled equations lack corresponding `\\eqref` / `\\ref` in the text?
 
 ### 3. Citations & References
 - Is the in-text citation format consistent throughout?

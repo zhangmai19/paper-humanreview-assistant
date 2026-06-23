@@ -45,3 +45,11 @@ Thumbs.db
 *.synctex.gz
 papers/temp_*.tex
 papers/main.tex
+papers/references.bib
+papers/0623*.tex
+
+# Project journals (may contain author's paper content)
+project_journal_*.md
+
+# Review output saved alongside the paper
+review_journal_*.md

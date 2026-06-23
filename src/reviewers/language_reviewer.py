@@ -31,18 +31,21 @@ LANGUAGE_USER = """Review the following academic paper for LANGUAGE & TERMINOLOG
 - Are technical terms used consistently throughout the paper?
 - Are abbreviations defined at first use and then used consistently?
 - Is the same concept referred to by different terms (inconsistent terminology)?
+- Are there signs of incomplete global find-replace (e.g., both "Agent" and "Participant" appearing)?
 
 ### 2. Grammar & Spelling
 - Are there grammatical errors (subject-verb agreement, tense, voice)?
 - Are there spelling mistakes or typos?
 - Are punctuation marks used correctly?
 - Are Chinese and English punctuation marks mixed inappropriately?
+- Are there article-noun agreement errors (e.g., "an participant", "a equilibrium")?
 
 ### 3. Academic Register
 - Does the language match formal academic writing standards?
 - Are there colloquial expressions, slang, or overly casual phrasing?
 - Are there overly ornate rhetorical flourishes or empty modifiers?
 - Is the balance of passive and active voice appropriate for the field?
+- Are gendered pronouns (he/she/his/her) used for generic participants? (neutral alternatives may be preferred)
 
 ### 4. Expression Precision
 - Are there vague or ambiguous expressions?
