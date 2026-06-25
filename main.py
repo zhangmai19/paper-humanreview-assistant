@@ -9,6 +9,7 @@ Usage:
     python main.py paper.tex
     python main.py paper.tex --dimensions format,ai_patterns,logic
     python main.py paper.tex --output-dir reviews/ --model claude-opus-4-8
+    python main.py paper.tex --math --repair
 """
 
 import sys
@@ -53,6 +54,11 @@ from src.utils import load_config, create_llm_client, print_banner, console
     "--verbose", "-v", is_flag=True, default=False,
     help="Verbose output",
 )
+@click.option(
+    "--repair", is_flag=True, default=False,
+    help="Enable math gap repair: numerical verification + symbolic derivation "
+         "for math annotations. Generates repair reports with Lemma/Appendix suggestions.",
+)
 def main(
     paper: str,
     dimensions: str | None,
@@ -63,12 +69,16 @@ def main(
     api_key: str | None,
     config_path: str,
     verbose: bool,
+    repair: bool,
 ):
     """
     Review an academic paper across multiple dimensions.
 
     PAPER: path to .tex, .md, or .txt file.
     Produces a structured Markdown review report — AI annotates, you decide.
+
+    With --repair, also runs numerical verification + symbolic derivation
+    on math annotations and generates repair reports.
     """
     # --- Load config ---
     if os.path.exists(config_path):
@@ -149,6 +159,44 @@ def main(
     from src.report_writer import write_report
     output_path = write_report(report, output_dir=final_output_dir)
     console.print(f"\n[bold green]📄 Report saved:[/bold green] {output_path}")
+
+    # --- Math gap repair ---
+    if repair and paper_obj.format == "latex":
+        math_annotations = report.by_dimension("math")
+        gap_annotations = [
+            a for a in math_annotations
+            if a.category in ("assumption", "derivation-gap", "completeness")
+            and a.severity.value in ("high", "medium")
+        ]
+        if gap_annotations:
+            console.print(f"\n[bold cyan]🔧 Math Gap Repair[/bold cyan]")
+            console.print(
+                f"[dim]  {len(gap_annotations)} repairable math gaps found "
+                f"({len(math_annotations)} total math annotations)[/dim]\n"
+            )
+            from src.math_gap_repair.engine import repair_math_gap
+            for i, ann in enumerate(gap_annotations):
+                console.print(
+                    f"  [{i+1}/{len(gap_annotations)}] "
+                    f"Repairing: [cyan]{ann.title}[/cyan]..."
+                )
+                repair_path = repair_math_gap(
+                    paper=paper_obj,
+                    annotation=ann,
+                    output_dir=final_output_dir,
+                )
+                if repair_path:
+                    console.print(f"    [green]→[/green] {repair_path}")
+                else:
+                    console.print(f"    [dim]→ skipped (could not extract expression)[/dim]")
+        else:
+            console.print(f"\n[dim]🔧 No repairable math gaps found (need HIGH/MEDIUM "
+                         f"assumptions or derivation-gaps)[/dim]")
+    elif repair and paper_obj.format != "latex":
+        console.print(
+            f"\n[yellow]⚠ --repair only supports LaTeX papers, "
+            f"got {paper_obj.format}[/yellow]"
+        )
 
 
 if __name__ == "__main__":

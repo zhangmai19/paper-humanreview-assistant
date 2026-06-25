@@ -113,15 +113,19 @@ paper-humanreview-assistant/
 │   ├── orchestrator.py                  # Coordinates rule-based + LLM reviewers
 │   ├── report_writer.py                 # Generates structured Markdown reports
 │   ├── utils.py                         # Config loading, LLM client, console output
+│   ├── math_gap_repair/                 # Math gap repair module
+│   │   ├── __init__.py                  # Data models, LaTeX templates, report builder
+│   │   ├── engine.py                    # Repair engine (expression → report)
+│   │   └── analysis_script_template.py  # sympy+numpy analysis (subprocess)
 │   └── reviewers/
 │       ├── base.py                      # Abstract reviewer (enforces annotation contract)
 │       ├── ai_pattern_scanner.py        # Rule-based AI writing detection (24+ patterns)
 │       ├── format_reviewer.py           # Format & structure (LLM)
 │       ├── language_reviewer.py         # Language & terminology (LLM)
-│       ├── ai_reviewer.py              # AI patterns verification (LLM)
-│       ├── math_reviewer.py            # Mathematical derivation (LLM)
-│       ├── logic_reviewer.py           # Logical flow (LLM)
-│       └── significance_reviewer.py    # Research significance (LLM)
+│       ├── ai_reviewer.py               # AI patterns verification (LLM)
+│       ├── math_reviewer.py             # Mathematical derivation (LLM)
+│       ├── logic_reviewer.py            # Logical flow (LLM)
+│       └── significance_reviewer.py     # Research significance (LLM)
 ├── tests/
 │   ├── test_paper_reader.py
 │   └── test_ai_pattern_scanner.py
@@ -141,6 +145,50 @@ The AI writing pattern scanner runs **locally** — no API calls, instant result
 - **Filler**: Excessive hedging, generic conclusions
 
 Patterns are density-gated to avoid false positives — individual "hence" or "demonstrate" won't flag; only dense clusters trigger alerts.
+
+## Math Gap Repair
+
+When the math reviewer flags an unverified claim (e.g. "concavity assumed without proof"), `--repair` runs a three-stage pipeline to find the proof:
+
+```
+Numerical Exploration → Symbolic Derivation → Lemma + Appendix
+```
+
+### How It Works
+
+1. **Numerical sweep** — Grid-scans the parameter space to test the claim. If violations are found, it reports exactly where. Includes assumption filtering (e.g. `n_H >= 2`).
+
+2. **Symbolic analysis** — Expands the expression, groups terms by monomial degree, factors each group. Determines sign-definiteness from the factorization. Handles both `≤ 0` and `≥ 0` claims (auto-detected from context).
+
+3. **LaTeX generation** — Produces a self-contained Lemma + Proof block and an Appendix section with the full algebraic decomposition. Ready for human review and insertion into the paper.
+
+### Usage
+
+```bash
+python main.py paper.tex --math --repair
+```
+
+For programmatic use:
+
+```python
+from src.math_gap_repair.engine import repair_math_gap
+
+repair_math_gap(
+    expression="-gamma*a**4*n_H**3*sigma2_H*(n_H-1) - ...",
+    claim="d2U_dalphaH2 <= 0 (U_H concave in alpha_H)",
+    assumptions=["n_H >= 2", "sigma_H^2 >= sigma_L^2"],
+)
+```
+
+### Methodology
+
+This implements a general approach developed while repairing a real paper:
+
+1. **Numerical exploration** — Write scripts to scan parameter space, verify the claim holds, locate counterexample regions
+2. **Symbolic derivation** — Use sympy to get exact expressions, factor/expand/collect, pair terms, find sufficient conditions
+3. **Paper integration** — Write the result as a Lemma + Appendix with clear conditions
+
+The module generalizes this pattern to any mathematical claim as long as it can be expressed as a sympy expression.
 
 ## Workflow: Review, Then Edit One at a Time
 
